@@ -134,6 +134,60 @@ Fluxo:
 
 ---
 
+## ☁️ PARTE 11B — MENSAGERIA COM AWS SQS (baseado no padrão real do Educabiz)
+
+### 🎯 Objetivo
+
+A Parte 11 usou Kafka/RabbitMQ (mensageria "genérica"). Essa parte é focada especificamente em **AWS SQS**, porque é o que se usa de verdade em produção no seu trabalho (o fluxo de boletos do Educabiz roda inteiro em cima disso) — e é diretamente relevante pra feature de assinatura digital que você está construindo.
+
+Essa etapa nasceu de uma análise do código real do Educabiz (`GenericQueue`, `BoletoIssueRequestQueue`, `BoletosQueue`, `BoletoIssuePDFJob`), que revelou um padrão funcional mas com pontos datados: SDK v1 da AWS (já em manutenção), polling curto em vez de long-polling, sem Dead Letter Queue configurada, sem proteção visível contra reprocessamento (SQS é *at-least-once*, não *exactly-once*), credenciais estáticas em vez de IAM Role. O objetivo aqui é implementar a versão **corrigida** desses pontos.
+
+### 💰 Sobre custo — não precisa de conta AWS real
+
+Você mencionou não ter muita experiência com AWS e não querer o risco de esquecer de apagar algo e ter gasto. Solução: **use o LocalStack** (`docker.io/localstack/localstack`), que emula SQS localmente via Docker — sem conta AWS, sem cartão de crédito, sem "máquina" nenhuma pra lembrar de desligar. Sobe o container, cria a fila local, testa à vontade, derruba o container quando terminar (`docker compose down`). Zero risco de cobrança, porque não existe recurso real da AWS envolvido. Isso também é uma prática a mais de Docker, que você já vai precisar pra entrevista.
+
+Se mais pra frente você quiser testar com AWS de verdade: SQS não tem "máquina" (é serverless — você paga por chamada de API, não por hora ligado), e o free tier cobre 1 milhão de requisições/mês. Ainda assim, pra esse exercício, LocalStack é mais simples e 100% seguro.
+
+### 🧪 Desafio
+
+* Suba um SQS local via LocalStack (Docker) com uma fila principal + uma Dead Letter Queue associada (`RedrivePolicy` com `maxReceiveCount`)
+* Implemente um **Producer** (envia mensagem) usando o **AWS SDK v2** (`software.amazon.awssdk`, não o v1 usado no Educabiz)
+* Implemente um **Consumer** que:
+  * Usa **long-polling de verdade** (`WaitTimeSeconds` > 0 no `ReceiveMessageRequest`)
+  * É **idempotente** — processa a mesma mensagem duas vezes (simule reenvio) sem duplicar o efeito
+  * Deleta a mensagem só depois de processar com sucesso
+* Simule uma mensagem "envenenada" (que sempre falha ao processar) e prove que ela migra pra DLQ depois de N tentativas, sem ficar em loop infinito
+
+### 🚨 Regras
+
+* Nenhuma credencial real da AWS no código — só as credenciais fake do LocalStack
+* Tem que existir um teste real provando a idempotência (mandar a mesma mensagem 2x, mostrar que só processou uma vez)
+* Tem que existir um teste real provando a DLQ (mensagem que falha sempre acaba lá, não fica reprocessando pra sempre)
+
+### ✅ Resultado esperado
+
+* Producer/Consumer funcionando contra o SQS local
+* DLQ configurada e testada de verdade
+* Idempotência provada com teste, não só implementada "na fé"
+
+### ❓ Perguntas
+
+1. Qual a diferença entre entrega *at-least-once* e *exactly-once*? Por que o SQS é *at-least-once*?
+2. O que é long-polling, e por que ele é melhor que o polling curto que o Educabiz usa hoje (sem `WaitTimeSeconds`)?
+3. Por que uma Dead Letter Queue importa? O que aconteceria com uma mensagem envenenada sem ela?
+4. Que estratégia você usou pra garantir idempotência no consumidor?
+5. Comparando com o código real do Educabiz que analisamos: das melhorias que você implementou aqui (SDK v2, long-polling, DLQ, idempotência, sem credenciais estáticas), quais você aplicaria lá se pudesse, e por quê?
+
+### 🎯 Avaliação (0 a 10)
+
+* Producer/Consumer funcionando via LocalStack
+* DLQ configurada e testada
+* Idempotência provada com teste real
+* Entendimento conceitual (at-least-once, long-polling)
+* Conexão clara com o código real do Educabiz
+
+---
+
 ## 🛡️ PARTE 12 — CIRCUIT BREAKER (+ Sealed Classes & Pattern Matching)
 
 ### 🎯 Objetivo
@@ -253,6 +307,7 @@ Você deve se autoavaliar:
 | Redis (Cache) | |
 | Microsserviços | |
 | Mensageria | |
+| Mensageria com AWS SQS (LocalStack) | |
 | Circuit Breaker + Sealed/Pattern Matching | |
 | API Gateway | |
 | Java Moderno + Concorrência Real | |
