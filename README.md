@@ -63,18 +63,17 @@ Você deve:
 
 ---
 
-## 🌐 PARTE 10 — MICROSSERVIÇOS
+## 🌐 PARTE 10 — MICROSSERVIÇOS (agora poliglota: Java + Clojure)
 
 ### 🎯 Objetivo
 
-Separar a aplicação em múltiplos serviços independentes utilizando Spring Boot.
+Separar a aplicação em múltiplos serviços independentes. **Decisão tomada em 2026-07-13:** o `pagamento-service` fica em Spring Boot (como já vínhamos fazendo); o `notificacao-service` vira uma oportunidade de aprender **Clojure** na prática, já que roda na JVM e se comunica com o resto do sistema pela mesma fila que a Parte 11/11B já constroem. Isso também é currículo real — arquitetura poliglota (Java + Clojure conversando via mensageria) é exatamente como bancos como o Nubank operam.
 
-### 🧪 Desafio
+Como você nunca programou em Clojure, essa etapa foi dividida em três partes: a base em Java (10), os fundamentos da linguagem do zero (10B) e o serviço de fato (10C). Não pula a 10B — sem ela, a 10C vai ser só copiar código sem entender.
 
-Criar:
+### 🧪 Desafio (pagamento-service)
 
-* **🔹 pagamento-service** — responsável por pagamentos
-* **🔹 notificacao-service** — responsável por notificações
+* **🔹 pagamento-service** — responsável por pagamentos, em Spring Boot
 
 ### 🚨 Regras
 
@@ -95,6 +94,72 @@ Criar:
 * Independência entre sistemas
 * Organização do código
 * Comunicação funcional
+
+---
+
+## 🟣 PARTE 10B — FUNDAMENTOS DE CLOJURE (do zero)
+
+### 🎯 Objetivo
+
+Antes de escrever um serviço, entender a linguagem — sintaxe, imutabilidade, REPL. Sem framework nenhum ainda, só a linguagem pura.
+
+### 🧪 Desafio
+
+* Instalar a ferramenta oficial (`clj`/Clojure CLI, via `deps.edn`) e abrir um REPL
+* No REPL, praticar até se sentir confortável com:
+  * **Notação prefixa**: `(+ 1 2)` em vez de `1 + 2` — o operador vem primeiro, dentro dos parênteses
+  * **Estruturas de dados**: listas `()`, vetores `[1 2 3]`, mapas `{:nome "Diogo" :idade 30}`, keywords `:tipo`
+  * **`def`** (define um valor) e **`defn`** (define uma função)
+  * **Imutabilidade**: não existe variável que muda de valor — "alterar" um mapa cria um mapa novo (`assoc`, `update`)
+  * **A macro de threading `->`**: encadeia chamadas de função de forma legível, parecido com um `.method().method()` fluente do Java — `(-> pagamento :valor (* 1.1))`
+* Escrever, em Clojure puro (sem framework), a mesma lógica de **cálculo de multa por atraso** que você já implementou em Java na Parte 6 do outro repositório (Strategy Pattern) — agora como uma função pura
+
+### ❓ Perguntas
+
+1. Por que Clojure não tem `for` (i=0; i<10; i++) do jeito que Java tem? O que substitui os loops imperativos?
+2. O que significa "dado imutável", na prática? Se você não pode alterar um mapa, como um programa "muda de estado"?
+3. Compara a função de multa que você escreveu em Clojure com a versão Java (Strategy Pattern) — o que ficou mais simples? O que ficou mais estranho?
+4. O que é o REPL, e por que desenvolvimento "REPL-driven" é uma cultura tão forte em Clojure (diferente do ciclo compilar→rodar→testar do Java)?
+
+### 🎯 Avaliação (0 a 10)
+
+* Conforto real com a sintaxe (não só copiar exemplo)
+* Função de multa reescrita corretamente em Clojure
+* Entendimento de imutabilidade
+
+---
+
+## 🟣 PARTE 10C — NOTIFICACAO-SERVICE EM CLOJURE
+
+### 🎯 Objetivo
+
+Construir o `notificacao-service` de verdade: um microsserviço HTTP em Clojure que consome mensagens da fila (Parte 11 ou 11B) e "envia" notificações (pode ser só um log — não precisa de e-mail/SMS real).
+
+### 🧪 Desafio
+
+* Adicionar as bibliotecas **Ring** (abstração HTTP de base, equivalente ao Servlet API) e **Reitit** (roteamento, equivalente ao `@RequestMapping`) ao `deps.edn`
+* Criar um handler Ring mínimo: uma função que recebe um mapa de request e devolve um mapa de response (`{:status 200 :body "ok"}`) — sem anotação, sem reflection, só função pura
+* Expor uma rota de health-check (`GET /health`) via Reitit
+* Consumir mensagens da fila de pagamento criada nas Partes 11/11B, e logar uma "notificação" pra cada pagamento processado
+* Rodar o `pagamento-service` (Spring) e o `notificacao-service` (Clojure) ao mesmo tempo, provando que os dois se comunicam só pela fila — nenhuma chamada HTTP direta entre eles
+
+### 🚨 Regras
+
+* `notificacao-service` não pode ter acesso direto ao banco do `pagamento-service`
+* A única comunicação entre os dois é via mensageria
+
+### ❓ Perguntas
+
+1. Um handler Ring é só uma função (request → response), sem classe, sem anotação. Compara isso com um `@RestController` do Spring — o que se perde, o que se ganha?
+2. Por que não faz sentido o `notificacao-service` compartilhar o banco do `pagamento-service`?
+3. O que aconteceria com o `notificacao-service` se a fila estivesse fora do ar? E se fosse uma chamada HTTP direta em vez de fila?
+
+### 🎯 Avaliação (0 a 10)
+
+* Serviço Clojure funcional, consumindo a fila de verdade
+* Uso correto de Ring/Reitit
+* Comunicação exclusivamente via mensageria (sem atalho HTTP direto)
+* Entendimento do contraste com o modelo Spring
 
 ---
 
@@ -305,7 +370,9 @@ Você deve se autoavaliar:
 | Etapa | Nota (0–10) |
 |---|---|
 | Redis (Cache) | |
-| Microsserviços | |
+| Microsserviços (pagamento-service) | |
+| Fundamentos de Clojure | |
+| Microsserviços (notificacao-service em Clojure) | |
 | Mensageria | |
 | Mensageria com AWS SQS (LocalStack) | |
 | Circuit Breaker + Sealed/Pattern Matching | |
