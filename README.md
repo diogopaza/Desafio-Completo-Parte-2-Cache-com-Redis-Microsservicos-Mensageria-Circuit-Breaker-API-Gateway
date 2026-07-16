@@ -290,38 +290,84 @@ Implementar tolerância a falhas utilizando Resilience4j — e modelar o estado 
 
 ---
 
-## 🌍 PARTE 13 — API GATEWAY
+## 🌍 PARTE 13 — API GATEWAY (+ Load Balancer + Rate Limiting, com teste de carga real)
 
 ### 🎯 Objetivo
 
-Centralizar o acesso aos serviços utilizando Spring Cloud Gateway.
+Centralizar o acesso aos serviços utilizando Spring Cloud Gateway — e provar, com números reais de um teste de carga, que balanceamento de carga e rate limiting fazem diferença de verdade, não só na teoria.
+
+### 🧱 Feature nova pra servir de alvo do teste: `GET /pagamentos/extrato`
+
+Antes do desafio de infraestrutura, implementa um endpoint real e propositalmente "pesado": um extrato de pagamentos por período.
+
+```
+GET /pagamentos/extrato?dataInicio=2026-01-01&dataFim=2026-12-31
+```
+
+Deve devolver a lista de pagamentos do período mais um resumo (total pago, total pendente, contagem por tipo). É uma consulta agregada de verdade no banco — o tipo de endpoint que, sob carga, expõe gargalo real (diferente de um `GET /pagamentos/{id}`, que é leve e rápido por natureza).
 
 ### 🧪 Desafio
 
-Criar um gateway que:
-
-* Roteie requisições
-* Centralize endpoints
-* Redirecione para os microsserviços
+* Criar o gateway com Spring Cloud Gateway: roteie requisições, centralize endpoints, redirecione pros microsserviços
+* Subir **2 ou mais instâncias** do `pagamento-service` (portas diferentes) e configurar o Gateway pra balancear carga entre elas
+* Configurar **rate limiting** no Gateway especificamente na rota `/pagamentos/extrato` (Spring Cloud Gateway tem `RequestRateLimiter` nativo, com Redis como contador — conecta direto com a Parte 9)
+* Rodar um **teste de carga real** com [k6](https://k6.io/) (ou ferramenta equivalente) disparando requisições concorrentes contra `/pagamentos/extrato` **através do Gateway**:
+  * Registra throughput, latência p95, taxa de erro
+  * Prova, pelos logs/métricas, que as requisições foram distribuídas entre as instâncias (não foram todas pra uma só)
+  * Prova que, passando do limite configurado no rate limiter, a resposta vira `429 Too Many Requests`
 
 ### 🚨 Regras
 
-* O cliente só acessa o gateway
-* Os serviços NÃO são acessados diretamente
+* O cliente só acessa o gateway — os serviços NÃO são acessados diretamente
+* O teste de carga tem que ser real (k6 ou similar disparando requisições de verdade), não estimativa teórica
+* Precisa ter evidência (log, métrica, ou saída do teste) de que o balanceamento e o rate limit realmente aconteceram — não só "deveria funcionar"
 
 ### ❓ Perguntas
 
-1. O que é API Gateway?
-2. Qual problema ele resolve?
-3. Quais responsabilidades ele pode ter?
-4. Por que centralizar o acesso?
+1. O que é API Gateway? Qual problema ele resolve?
+2. Qual a diferença entre Load Balancer e API Gateway — eles são a mesma coisa?
+3. Que algoritmo de balanceamento você usou (round-robin? outro?), e por quê?
+4. Nos números do seu teste de carga: o que aconteceu com a latência quando você foi de 1 instância pra 2+? Os números bateram com o que você esperava?
+5. Por que faz sentido colocar rate limiting no Gateway, e não em cada serviço individualmente?
 
 ### 🎯 Avaliação (0 a 10)
 
-* Roteamento correto
-* Organização da arquitetura
-* Centralização funcional
-* Clareza na comunicação
+* Roteamento e balanceamento funcionando de verdade (comprovado no teste de carga)
+* Rate limiting funcional (429 comprovado)
+* Teste de carga real executado, com números reportados
+* Entendimento conceitual (Gateway vs Load Balancer, algoritmo escolhido)
+
+---
+
+## 🗄️ PARTE 13B — BANCO DE DADOS ESCALÁVEL (réplica de leitura + índices, com números reais)
+
+### 🎯 Objetivo
+
+Usar o mesmo endpoint pesado (`/pagamentos/extrato`) pra provar, com medição real de antes/depois, o impacto de índice e de réplica de leitura — não só descrever a teoria.
+
+### 🧪 Desafio
+
+* **Índice:** roda o teste de carga (k6) contra `/pagamentos/extrato` **sem índice** na coluna usada no filtro de data, anota os números (latência p95, throughput). Depois cria o índice, roda o **mesmo teste**, compara os números lado a lado.
+* **Réplica de leitura:** sobe um Postgres primário + uma réplica de leitura (dá pra fazer local via Docker Compose, com replicação lógica ou streaming replication). Aponta o endpoint `/pagamentos/extrato` (só leitura) pra réplica, mantém as escritas (`POST /pagamentos`) no primário. Roda o teste de carga de novo, compara com o cenário de instância única.
+
+### 🚨 Regras
+
+* As comparações de performance precisam ser de **execuções reais do mesmo teste de carga**, uma antes e uma depois de cada mudança — não estimativa
+* Escrita continua indo só pro banco primário — a réplica é só leitura
+
+### ❓ Perguntas
+
+1. Pelos seus números: quanto o índice melhorou a latência p95? Isso bateu com o que você esperava?
+2. O que é replicação de leitura, e por que ela não ajuda em nada pra escrita (`POST /pagamentos`)?
+3. O que é sharding, e por que você não implementou ele aqui (o que ele resolveria que réplica de leitura não resolve)?
+4. Qual o risco de *replication lag* (atraso entre o primário e a réplica)? Em que cenário isso causaria um bug real no seu sistema?
+
+### 🎯 Avaliação (0 a 10)
+
+* Índice aplicado com melhoria real e medida
+* Réplica de leitura funcional, roteando leitura corretamente
+* Números de antes/depois reportados e comparados
+* Entendimento de replication lag e seus riscos
 
 ---
 
@@ -376,7 +422,8 @@ Você deve se autoavaliar:
 | Mensageria | |
 | Mensageria com AWS SQS (LocalStack) | |
 | Circuit Breaker + Sealed/Pattern Matching | |
-| API Gateway | |
+| API Gateway + Load Balancer + Rate Limiting | |
+| Banco de Dados Escalável (índice + réplica) | |
 | Java Moderno + Concorrência Real | |
 | Integração geral | |
 
