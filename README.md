@@ -322,6 +322,14 @@ Deve devolver a lista de pagamentos do período mais um resumo (total pago, tota
 * O teste de carga tem que ser real (k6 ou similar disparando requisições de verdade), não estimativa teórica
 * Precisa ter evidência (log, métrica, ou saída do teste) de que o balanceamento e o rate limit realmente aconteceram — não só "deveria funcionar"
 
+### 🔭 Extensão opcional — Service Discovery (Eureka ou Consul)
+
+Hoje o roteamento usa URL fixa (host:porta direto). Como próximo passo — **não obrigatório pra fechar essa parte, é continuação natural depois**:
+
+* **Eureka** está em modo de manutenção pela Netflix há anos; **Consul** (HashiCorp) é a opção mais ativa no ecossistema atual, se for usar service discovery de verdade.
+* **Mas antes de implementar qualquer um dos dois, pensa no ambiente de deploy real**: se o destino é **Kubernetes** (que é o caso, dado o resto do desafio), o K8s já resolve service discovery nativamente via DNS de Service — Eureka/Consul viram redundantes nesse cenário, e só fazem sentido fora de um cluster K8s ou em ambiente híbrido.
+* Se quiser praticar mesmo assim (é uma ferramenta comum de ver em vaga e projeto legado), a ordem certa é: montar um Eureka Server, registrar os dois serviços como Eureka Clients, e trocar a URL fixa do Gateway por resolução pelo nome lógico do serviço.
+
 ### ❓ Perguntas
 
 1. O que é API Gateway? Qual problema ele resolve?
@@ -329,12 +337,14 @@ Deve devolver a lista de pagamentos do período mais um resumo (total pago, tota
 3. Que algoritmo de balanceamento você usou (round-robin? outro?), e por quê?
 4. Nos números do seu teste de carga: o que aconteceu com a latência quando você foi de 1 instância pra 2+? Os números bateram com o que você esperava?
 5. Por que faz sentido colocar rate limiting no Gateway, e não em cada serviço individualmente?
+6. Por que, rodando em Kubernetes, você normalmente não precisaria de Eureka/Consul? O que o K8s já resolve nativamente?
 
 ### 🎯 Avaliação (0 a 10)
 
 * Roteamento e balanceamento funcionando de verdade (comprovado no teste de carga)
 * Rate limiting funcional (429 comprovado)
 * Teste de carga real executado, com números reportados
+* Entendimento de quando service discovery externo (Eureka/Consul) faz sentido vs. quando o K8s já resolve sozinho
 * Entendimento conceitual (Gateway vs Load Balancer, algoritmo escolhido)
 
 ---
