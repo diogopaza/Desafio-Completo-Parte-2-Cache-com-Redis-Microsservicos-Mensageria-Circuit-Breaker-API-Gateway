@@ -385,11 +385,13 @@ Aplicar Virtual Threads e entender o Java Memory Model na prática, com um teste
 * Observar e documentar o comportamento: throughput, race conditions (se houver estado compartilhado mal protegido), comportamento do cache sob concorrência, comportamento do circuit breaker sob carga
 * Usar Streams/Lambdas para processar os resultados do teste de carga (agregações, contagens, latência média/p95)
 * Usar Records para modelar o resultado de cada chamada do teste (ex: `record ChamadaResultado(int status, long latenciaMs, String erro)`)
+* **Adicionar Spring Boot Actuator** (`spring-boot-starter-actuator`) e, **durante o mesmo teste de carga**, observar o sistema por dentro em tempo real: `/actuator/threaddump` (threads presas/bloqueadas), `/actuator/metrics` (uso de memória, pool de conexão do banco, contadores de request), `/actuator/health`. Antes você só media throughput/latência de fora (via k6) — agora você também vê o que está acontecendo **dentro** da JVM enquanto isso acontece
 
 ### 🚨 Regras
 
 * O teste de concorrência tem que ser **real** (threads/requisições concorrentes de verdade), não um loop sequencial disfarçado
 * Pelo menos um cenário deve expor uma condição de corrida real (proposital) e a correção dela, pra provar entendimento — não só o caminho feliz
+* Captura pelo menos um `/actuator/threaddump` **durante** o teste de carga (não depois, quando tudo já esfriou) — precisa ser evidência do sistema sob pressão de verdade
 
 ### ❓ Perguntas
 
@@ -399,6 +401,7 @@ Aplicar Virtual Threads e entender o Java Memory Model na prática, com um teste
 4. Por que Virtual Threads não eliminam a necessidade de pensar em concorrência (thread-safety continua sendo problema seu)?
 5. Onde Streams/Lambdas ajudaram (ou atrapalharam) na análise dos resultados do teste de carga?
 6. Por que Records são uma boa escolha pra modelar o resultado imutável de uma chamada de teste?
+7. No `/actuator/threaddump` capturado durante o teste: alguma thread apareceu presa/bloqueada esperando algo (banco, chamada externa)? O que isso te disse sobre onde está o gargalo real?
 
 ### 🎯 Avaliação (0 a 10)
 
