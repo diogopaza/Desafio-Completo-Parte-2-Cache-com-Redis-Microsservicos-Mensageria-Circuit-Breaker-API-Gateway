@@ -456,6 +456,122 @@ Ao final, você terá demonstrado:
 
 ---
 
+## 🚀 PIPELINE COMPLETA DE CI/CD/DEPLOY (2026-07-18)
+
+Motivado por um stack real visto num post: Push → CI → Docker/Registry → Kubernetes → Ingress → Observabilidade → GitOps. Adicionado como sequência de "Partes Extra" progressivas — implementa uma de cada vez, nessa ordem, não precisa fazer tudo junto.
+
+**Cortes conscientes de custo/escopo:**
+* **EKS real (AWS) fica de fora** — custa dinheiro de verdade (control plane + nós). Usa Kubernetes **local** (Minikube ou Kind) pra aprender os conceitos sem gastar nada — mesma API, mesmos manifests, zero custo.
+* **Jenkins é opcional** — você já tem GitHub Actions rodando (Sonar, Parte Extra do outro repositório). Jenkins faz a mesma função; só vale a pena se quiser experiência prática nele especificamente (é comum em banco/empresa mais tradicional).
+
+---
+
+### 🐳 PARTE EXTRA — DOCKERIZAÇÃO E PUBLICAÇÃO
+
+**Objetivo:** empacotar `pagamento_service` e `notificacao-service` como imagens Docker publicadas no DockerHub, em vez de rodar só via `mvn spring-boot:run` local.
+
+**Desafio:**
+* `Dockerfile` multi-stage pra cada serviço (build com Maven numa stage, imagem final só com o JAR + JRE, sem o SDK de build inteiro)
+* Build local das imagens e teste rodando via `docker run`
+* Push pro DockerHub (conta gratuita) com tag versionada, não só `latest`
+
+**Perguntas:**
+1. Por que usar build multi-stage no Dockerfile, em vez de uma imagem só?
+2. Qual a diferença entre a imagem `latest` e uma tag versionada — por que `latest` sozinho é arriscado em produção?
+
+**Avaliação (0-10):** Dockerfile funcional e otimizado (multi-stage) · imagem testada localmente · publicada no DockerHub com tag versionada
+
+---
+
+### 📊 PARTE EXTRA — OBSERVABILIDADE COM PROMETHEUS + GRAFANA
+
+**Objetivo:** evoluir o Actuator (já existente, Parte 14) pra métricas coletadas e visualizadas de verdade, não só endpoint cru.
+
+**Desafio:**
+* Adiciona `micrometer-registry-prometheus` nos serviços, expõe `/actuator/prometheus`
+* Sobe Prometheus via Docker, configurado pra fazer scrape desse endpoint
+* Sobe Grafana via Docker, conecta no Prometheus como fonte de dados, monta um dashboard simples (latência, taxa de erro, uso de memória)
+* Gera carga real (reaproveita o k6 da Parte 13) e observa os gráficos mudando ao vivo
+
+**Perguntas:**
+1. Qual a diferença entre o que o Actuator expõe sozinho e o que o Prometheus adiciona?
+2. O que é "scrape" no Prometheus — ele empurra ou puxa os dados?
+
+**Avaliação (0-10):** Prometheus coletando métricas reais · dashboard Grafana funcional · métricas mudando visivelmente sob carga real
+
+---
+
+### ☸️ PARTE EXTRA — KUBERNETES LOCAL (Minikube ou Kind)
+
+**Objetivo:** rodar os serviços num cluster Kubernetes de verdade, local, sem custo de nuvem.
+
+**Desafio:**
+* Instala Minikube ou Kind
+* Escreve os manifests (`Deployment`, `Service`) pra `pagamento_service`, `notificacao-service`, e os componentes de infra (Postgres, RabbitMQ, Redis) — ou usa Helm chart pronto pra infra e manifest próprio só pros seus serviços
+* Sobe tudo no cluster local, confirma os pods rodando (`kubectl get pods`)
+
+**Perguntas:**
+1. Qual a diferença entre `Deployment` e `Service` no Kubernetes?
+2. Como o Kubernetes decide reiniciar um pod que caiu — que mecanismo é esse?
+
+**Avaliação (0-10):** Cluster local funcional · serviços rodando como pods · comunicação entre eles funcionando dentro do cluster
+
+---
+
+### 🌐 PARTE EXTRA — INGRESS CONTROLLER
+
+**Objetivo:** rotear tráfego externo pros serviços certos por path, na camada do cluster — o mesmo problema que o API Gateway (Parte 13) resolve na camada da aplicação, agora resolvido na infraestrutura.
+
+**Desafio:**
+* Instala um Ingress Controller (nginx-ingress é o mais comum) no cluster local
+* Configura regras de roteamento por path (`/pagamentos` → `pagamento_service`, `/notificacoes` → `notificacao-service`)
+
+**Perguntas:**
+1. Qual a diferença entre o Ingress Controller e o Spring Cloud Gateway que você já construiu? Eles competem ou se complementam?
+
+**Avaliação (0-10):** Roteamento por path funcionando de verdade via Ingress
+
+---
+
+### 🔁 PARTE EXTRA — PIPELINE CI/CD COMPLETA (GitHub Actions)
+
+**Objetivo:** estender o workflow do GitHub Actions que já existe (hoje só roda Sonar) pra também buildar e publicar a imagem Docker automaticamente a cada push.
+
+**Desafio:**
+* Job novo no workflow: build da imagem, login no DockerHub via secret, push com tag baseada no commit/branch
+* (Opcional, avançado) job final aplicando os manifests no cluster automaticamente
+
+**Avaliação (0-10):** Pipeline builda e publica a imagem sozinha a cada push, sem passo manual
+
+---
+
+### 📦 PARTE EXTRA — JENKINS (opcional)
+
+**Objetivo:** só se você quiser experiência prática nomeável em entrevista — Jenkins resolve o mesmo problema que o GitHub Actions já resolve aqui.
+
+**Desafio:**
+* Sobe Jenkins via Docker (`jenkins/jenkins`), configura um pipeline simples fazendo o mesmo que o GitHub Actions já faz
+
+**Avaliação (0-10):** Pipeline Jenkins funcional — não obrigatório pra fechar a Parte, é bônus de currículo
+
+---
+
+### 🎯 PARTE EXTRA — HELM + ARGOCD (GITOPS)
+
+**Objetivo:** a peça mais avançada — Helm empacota os manifests Kubernetes (como um "instalador"), ArgoCD sincroniza automaticamente o estado do cluster com o que está no Git (GitOps: o Git é a fonte da verdade, não um `kubectl apply` manual).
+
+**Desafio:**
+* Converte os manifests da Parte de Kubernetes local num Helm Chart
+* Instala ArgoCD no cluster local, aponta pro repositório Git, prova que uma mudança no Git reflete automaticamente no cluster (sem `kubectl apply` manual)
+
+**Perguntas:**
+1. O que é GitOps, e por que "o Git é a fonte da verdade" muda o fluxo de deploy tradicional?
+2. Qual o papel do Helm nisso — ele substitui o ArgoCD ou trabalha junto?
+
+**Avaliação (0-10):** Helm Chart funcional · ArgoCD sincronizando automaticamente a partir do Git
+
+---
+
 ## 💬 COMO VAMOS TRABALHAR
 
 Ao concluir cada etapa:
